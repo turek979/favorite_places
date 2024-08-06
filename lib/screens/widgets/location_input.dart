@@ -1,5 +1,9 @@
+import 'package:favorite_places/models/place.dart';
+
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:location/location.dart';
+import 'package:http/http.dart' as http;
 
 class LocationInput extends StatefulWidget {
   const LocationInput({super.key});
@@ -9,8 +13,18 @@ class LocationInput extends StatefulWidget {
 }
 
 class _LocationInputState extends State<LocationInput> {
-  Location? _pickedLocation;
+  PlaceLocation? _pickedLocation;
   var _isGettingLocation = false;
+
+  String get locationImage {
+    if (_pickedLocation == null) {
+      return '';
+    }
+    final lat = _pickedLocation!.latitude;
+    final lng = _pickedLocation!.longitude;
+
+    return 'https://maps.googleapis.com/maps/api/staticmap?center=$lat,$lng&zoom=16&size=600x300&maptype=roadmap&markers=color:red%7Clabel:A%7C40.$lat,$lng&key=AIzaSyCO-jyqBX50Qp1jr7hyAGLsoHpGGKH4Od4';
+  }
 
   void _getCurrentLocation() async {
     Location location = Location();
@@ -41,12 +55,23 @@ class _LocationInputState extends State<LocationInput> {
 
     locationData = await location.getLocation();
 
+    if (locationData.longitude == null || locationData.latitude == null) {
+      return;
+    }
+
+    final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json?latlng=${locationData.latitude},${locationData.longitude}&key=AIzaSyCO-jyqBX50Qp1jr7hyAGLsoHpGGKH4Od4');
+    final response = await http.get(url);
+    final responseData = json.decode(response.body);
+    final address = responseData['results'][0]['formated_adress'];
+
     setState(() {
+      _pickedLocation = PlaceLocation(
+          latitude: locationData.latitude!,
+          longitude: locationData.longitude!,
+          address: address);
       _isGettingLocation = false;
     });
-
-    print(locationData.latitude);
-    print(locationData.longitude);
   }
 
   @override
@@ -59,6 +84,15 @@ class _LocationInputState extends State<LocationInput> {
           .bodyLarge!
           .copyWith(color: Theme.of(context).colorScheme.onSurface),
     );
+
+    if (_pickedLocation != null) {
+      previewContent = Image.network(
+        locationImage,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
 
     if (_isGettingLocation) {
       previewContent = const CircularProgressIndicator();
